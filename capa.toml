@@ -1,0 +1,11 @@
+# capa_cra_template package manifest.
+#
+# A starter project that is CRA-ready from commit zero: a small,
+# capability-bounded program plus the CI that turns the Capa
+# compiler's built-in supply-chain artifacts (SBOM, VEX, build
+# provenance) into release evidence. See docs/CRA-mapping.md.
+
+[package]
+name = "capa_cra_template"
+version = "0.1.0"
+capa = ">=1.0.0"

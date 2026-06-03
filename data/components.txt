@@ -1,0 +1,8 @@
+# One component per line. Blank lines and lines starting with '#'
+# are ignored by the reader. This is sample data so the project
+# runs and its SBOM is real out of the box; replace it with your
+# own component inventory.
+capa-stdlib
+capa_log
+capa_http
+capa_datetime

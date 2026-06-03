@@ -1,0 +1,110 @@
+name: Release
+
+# Triggered by a v* tag push. Builds a source tarball, regenerates
+# the conformity-artifact set, generates a SLSA L2 build-provenance
+# attestation through Sigstore (keyless OIDC, published to the Rekor
+# transparency log), and attaches the tarball plus the whole
+# conformity pack to a new GitHub release.
+#
+# Consumer-side verification of a downloaded tarball:
+#
+#   gh attestation verify capa_cra_template-<tag>.tar.gz --owner <you>
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write       # create release + upload assets
+  id-token: write       # Sigstore OIDC for keyless signing
+  attestations: write   # publish SLSA provenance attestation
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Verify tag is GPG-signed (if a publisher key is present)
+        run: |
+          if [ -f publisher.asc ]; then
+            gpg --import publisher.asc
+            git verify-tag "${GITHUB_REF_NAME}"
+          else
+            echo "No publisher.asc in repo; skipping tag-signature check."
+            echo "Add your public key as publisher.asc to enable this gate."
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Capa toolchain (pinned tag)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "git+https://github.com/nelsonduarte/capa-language.git@v1.0.0"
+
+      - name: Generate conformity artifacts
+        run: |
+          capa --cyclonedx  main.capa > sbom.cyclonedx.json
+          capa --spdx       main.capa > sbom.spdx.json
+          capa --vex        main.capa > vex.json
+          capa --provenance main.capa > provenance.json
+          capa --manifest   main.capa > manifest.json
+
+      - name: Build source tarball
+        id: tarball
+        run: |
+          NAME="${GITHUB_REPOSITORY##*/}-${GITHUB_REF_NAME}"
+          git archive --format=tar.gz --prefix="${NAME}/" HEAD > "${NAME}.tar.gz"
+          SHA256=$(sha256sum "${NAME}.tar.gz" | cut -d' ' -f1)
+          echo "name=${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SLSA L2 provenance for the tarball
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: ${{ steps.tarball.outputs.name }}
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.tarball.outputs.name }}
+            sbom.cyclonedx.json
+            sbom.spdx.json
+            vex.json
+            provenance.json
+            manifest.json
+          generate_release_notes: false
+          body: |
+            Conformity release of `${{ github.event.repository.name }}`.
+
+            **Tarball:** `${{ steps.tarball.outputs.name }}`
+            **SHA-256:** `${{ steps.tarball.outputs.sha256 }}`
+
+            ## Attached conformity pack
+
+            - `sbom.cyclonedx.json` / `sbom.spdx.json`: SBOM emitted by
+              the Capa compiler, including the per-function authority set
+              and the provably-excluded capabilities.
+            - `vex.json`: VEX exclusions (CRA Annex I vulnerability
+              handling).
+            - `provenance.json`: source-level build provenance.
+            - SLSA L2 build provenance for the tarball, attested through
+              Sigstore Rekor.
+
+            ## Verification
+
+            ```
+            gh attestation verify ${{ steps.tarball.outputs.name }} \
+                --owner ${{ github.repository_owner }}
+            ```
+
+            See `SECURITY.md` and `docs/CRA-mapping.md`.

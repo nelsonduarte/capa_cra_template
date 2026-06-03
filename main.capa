@@ -1,0 +1,48 @@
+/// capa_cra_template, a starter project that is CRA-ready from
+/// commit zero.
+///
+/// This is a deliberately small, capability-bounded program. It
+/// reads an allow-listed input file and prints a one-line summary.
+/// The point is not the program: it is what the Capa compiler can
+/// *prove* about it, and how that proof maps onto the EU Cyber
+/// Resilience Act. See docs/CRA-mapping.md.
+///
+/// Run it:        capa --run main.capa
+/// Type-check:    capa --check main.capa
+/// Prove its authority (CycloneDX SBOM):
+///                capa --cyclonedx main.capa
+///
+/// `main` declares exactly two capabilities, `Stdio` and `Fs`, and
+/// nothing else. The SBOM the compiler emits therefore lists `Net`,
+/// `Proc`, `Db`, `Env`, `Clock`, `Random`, and `Unsafe` as
+/// *provably excluded*: this program cannot reach the network, spawn
+/// a process, open a database, read the environment, read a clock,
+/// draw randomness, or use unsafe code. That machine-checkable
+/// exclusion set is the attack-surface evidence the CRA asks for.
+/// Read the components manifest through an Fs capability attenuated
+/// to the `data/` directory. `restrict_to` returns a narrower Fs:
+/// even though `main` is handed the ambient `fs`, everything below
+/// this line can only touch `data/`. A bug here cannot read
+/// `/etc/passwd`; the type system, not a code review, guarantees it.
+fun count_components(stdio: Stdio, fs: Fs) -> Int
+    let data = fs.restrict_to("data/")
+    match data.read("data/components.txt")
+        Ok(text) -> return summarise(stdio, text)
+        Err(_) ->
+            stdio.eprintln("could not read data/components.txt")
+            return 0
+
+/// Count the non-empty lines and echo each component back.
+fun summarise(stdio: Stdio, text: String) -> Int
+    var count = 0
+    for line in text.split("\n")
+        let name = line.trim()
+        if name.length() > 0 and not name.starts_with("#")
+            stdio.println("  - ${name}")
+            count = count + 1
+    return count
+
+fun main(stdio: Stdio, fs: Fs)
+    stdio.println("Components declared in data/components.txt:")
+    let n = count_components(stdio, fs)
+    stdio.println("Total: ${n} component(s).")

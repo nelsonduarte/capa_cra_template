@@ -1,0 +1,27 @@
+# Python bytecode (the Capa transpiler targets Python)
+__pycache__/
+*.pyc
+*.pyo
+
+# Vendored dependencies (re-fetched by `capa install`)
+vendor/
+
+# Generated conformity artifacts (CI regenerates them on release;
+# they are release assets, not source). Delete these lines if you
+# prefer to commit a snapshot into the repo.
+sbom.cyclonedx.json
+sbom.spdx.json
+vex.json
+provenance.json
+manifest.json
+audit_pack.md
+attestation.json
+*.tar.gz
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

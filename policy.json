@@ -1,0 +1,11 @@
+{
+  "product_name": "capa_cra_template",
+  "product_version": "0.1.0",
+  "tier": "L1",
+  "allowed_capability_surface": ["Stdio", "Fs"],
+  "per_function_allow": {
+    "main": ["Stdio", "Fs"],
+    "count_components": ["Stdio", "Fs"],
+    "summarise": ["Stdio"]
+  }
+}

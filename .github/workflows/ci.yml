@@ -1,0 +1,79 @@
+name: CI
+
+# Type-checks the project, runs it, and regenerates the full
+# conformity-artifact set on every push and PR. The artifacts are
+# uploaded so a reviewer can download and inspect them; the
+# release workflow attaches the same set to a tagged release.
+#
+# Everything here is offline: the Capa compiler emits the SBOM /
+# VEX / provenance from the source alone, no network, no scanner.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  conformity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Capa toolchain (pinned tag)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "git+https://github.com/nelsonduarte/capa-language.git@v1.0.0"
+
+      - name: Type-check + capability discipline
+        run: capa --check main.capa
+
+      - name: Format-check
+        run: capa --fmt-check main.capa
+
+      - name: Run against sample data
+        run: capa --run main.capa
+
+      - name: Generate conformity artifacts
+        run: |
+          capa --cyclonedx  main.capa > sbom.cyclonedx.json
+          capa --spdx       main.capa > sbom.spdx.json
+          capa --vex        main.capa > vex.json
+          capa --provenance main.capa > provenance.json
+          capa --manifest   main.capa > manifest.json
+
+      - name: Show the proven attack-surface exclusions
+        run: |
+          echo "Capabilities this program provably cannot reach:"
+          python - <<'PY'
+          import json
+          m = json.load(open("manifest.json"))
+          fns = m.get("functions", [])
+          # A capability is excluded program-wide only if *every*
+          # function excludes it (intersection of the per-function
+          # proofs); a cap used by any function is part of the surface.
+          sets = [set(f.get("provably_excluded_capabilities", [])) for f in fns]
+          excluded = set.intersection(*sets) if sets else set()
+          for cap in sorted(excluded):
+              print(f"  - {cap}")
+          PY
+
+      - name: Upload conformity pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformity-pack
+          path: |
+            sbom.cyclonedx.json
+            sbom.spdx.json
+            vex.json
+            provenance.json
+            manifest.json
