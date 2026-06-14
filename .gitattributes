@@ -1,0 +1,19 @@
+# Force LF in the working tree on every platform.
+#
+# Why a catch-all: the conformity pack's promise is a byte-for-byte
+# rebuild. The compiler emits the artefacts (manifest.json, the two
+# SBOMs, vex, provenance) with LF newlines on every OS, so the only way
+# a regenerated set can differ from a committed snapshot is if a
+# checkout rewrote committed LF to CRLF. A checkout with
+# core.autocrlf=true does exactly that to any text file not pinned here.
+# Pinning every tracked file to eol=lf makes the working tree LF
+# regardless of the contributor's autocrlf setting, so:
+#   - main.capa hashes the same bytes the CI sees, and
+#   - if you opt into committing an artefact snapshot (see .gitignore),
+#     that snapshot stays reproducible across operating systems.
+#
+# Every tracked file in this repo is text (.capa, .json, .md, .toml,
+# LICENSE); there are no binaries, so a blanket eol=lf is safe. If a
+# binary asset is ever added, give it an explicit `*.ext binary` rule
+# below to opt it out.
+* text=auto eol=lf
