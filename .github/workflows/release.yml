@@ -50,6 +50,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install "git+https://github.com/nelsonduarte/capa-language.git@v1.0.0"
 
+      - name: Derive the reproducible-build epoch from the tagged commit
+        run: |
+          # Pin the build timestamp to the tagged commit's committer date
+          # (Unix UTC seconds) so the conformity pack attached to this
+          # release is byte-for-byte reproducible: anyone who checks out
+          # the tag and reruns these commands gets identical bytes.
+          #
+          # Deriving the epoch from HEAD is NOT circular: the artifacts
+          # are release assets, never committed, so the tagged commit
+          # already exists and is immutable when the release runs. %ct is
+          # a property of that fixed commit. (The fetch-depth: 0 checkout
+          # above carries full history; the tip commit alone is read.)
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Generate conformity artifacts
         run: |
           capa --cyclonedx  main.capa > sbom.cyclonedx.json

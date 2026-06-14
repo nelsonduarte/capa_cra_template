@@ -43,6 +43,21 @@ jobs:
       - name: Run against sample data
         run: capa --run main.capa
 
+      - name: Derive the reproducible-build epoch from the commit
+        run: |
+          # Pin the build timestamp to this commit's committer date
+          # (Unix UTC seconds). The compiler stamps every artifact's
+          # timestamp from SOURCE_DATE_EPOCH instead of the wall clock,
+          # so two builds of the same commit are byte-identical.
+          #
+          # Deriving the epoch from HEAD is NOT circular here: the
+          # artifacts are build output, never committed, so the commit
+          # already exists and is immutable when CI runs. %ct is a
+          # property of that fixed commit, identical on every rerun and
+          # on any machine. (The shallow depth-1 checkout above is
+          # enough: only the tip commit is read.)
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Generate conformity artifacts
         run: |
           capa --cyclonedx  main.capa > sbom.cyclonedx.json
@@ -50,6 +65,39 @@ jobs:
           capa --vex        main.capa > vex.json
           capa --provenance main.capa > provenance.json
           capa --manifest   main.capa > manifest.json
+
+      - name: Prove the artifacts are byte-for-byte reproducible
+        run: |
+          # Regenerate the same five artifacts from the same commit and
+          # the same SOURCE_DATE_EPOCH into a separate directory, then
+          # diff byte-for-byte. A different PYTHONHASHSEED is forced for
+          # this second pass so any hash-order instability in collection
+          # serialisation would surface as a diff too. If anything
+          # differs the build fails: reproducibility is a tested
+          # property on every push, not just a claim in the docs.
+          mkdir -p .repro-check
+          PYTHONHASHSEED=1 capa --cyclonedx  main.capa > .repro-check/sbom.cyclonedx.json
+          PYTHONHASHSEED=1 capa --spdx       main.capa > .repro-check/sbom.spdx.json
+          PYTHONHASHSEED=1 capa --vex        main.capa > .repro-check/vex.json
+          PYTHONHASHSEED=1 capa --provenance main.capa > .repro-check/provenance.json
+          PYTHONHASHSEED=1 capa --manifest   main.capa > .repro-check/manifest.json
+
+          status=0
+          for f in sbom.cyclonedx.json sbom.spdx.json vex.json provenance.json manifest.json; do
+            if cmp -s "$f" ".repro-check/$f"; then
+              echo "ok       $f is reproducible"
+            else
+              echo "MISMATCH $f differs between two builds of the same commit"
+              diff -u "$f" ".repro-check/$f" || true
+              status=1
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error::conformity artifacts are not byte-for-byte reproducible (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH)"
+            exit 1
+          fi
+          echo "All five artifacts are byte-for-byte reproducible (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH)."
+          rm -rf .repro-check
 
       - name: Show the proven attack-surface exclusions
         run: |
