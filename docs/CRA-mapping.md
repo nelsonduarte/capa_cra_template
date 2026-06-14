@@ -27,6 +27,7 @@ for it, and the command that produces it.
 | (1) SBOM | "a software bill of materials in a commonly used and machine-readable format" | CycloneDX 1.5 and SPDX 2.3 SBOMs emitted directly by the compiler | `capa --cyclonedx main.capa` / `capa --spdx main.capa` |
 | (2) address and remediate vulnerabilities | A documented exploitability position | A VEX document (Vulnerability Exploitability eXchange) | `capa --vex main.capa` |
 | (8) secure distribution | Integrity of the released artifact | SLSA L2 build provenance (Sigstore-attested) plus a GPG-signed tag | the `release.yml` workflow |
+| (1)/(8) verifiable evidence | The evidence above is itself reproducible | Two builds of the same commit produce byte-identical artifacts on any OS, so an assessor can rebuild and diff to zero. CI proves it on every push by regenerating the pack and failing on any byte difference | `SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD) capa --cyclonedx main.capa` (and the other emitters) |
 
 ## Annex II, information and instructions
 
@@ -46,6 +47,15 @@ type system, the SBOM can carry a machine-checkable list of
 capabilities the program provably does not use. That negative proof
 is the evidence a vulnerability scanner cannot give you, and it is
 the reason this template exists.
+
+The evidence is also reproducible by construction: two builds of the
+same commit yield byte-identical artifacts on any operating system,
+because every timestamp is pinned to the commit's date via
+`SOURCE_DATE_EPOCH` and newlines are pinned to LF via `.gitattributes`.
+CI enforces this on every push (it regenerates the pack and fails on
+any byte difference), so the conformity evidence is not merely
+available but independently verifiable: an assessor can rebuild it and
+diff against what shipped to zero.
 
 ## A regulator-readable audit pack (optional)
 

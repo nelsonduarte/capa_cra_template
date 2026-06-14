@@ -51,6 +51,36 @@ capa --vex        main.capa > vex.json
 capa --provenance main.capa > provenance.json
 ```
 
+## Reproducible by construction
+
+Two builds of the same commit produce **byte-identical** artifacts, on
+any operating system. This is a CRA-relevant property: the evidence is
+not just available, it is verifiable and reproducible, so an assessor
+can rebuild it and diff against what shipped and get zero differences.
+
+CI proves this automatically: after generating the five artifacts it
+regenerates them a second time (same commit, same epoch, a different
+`PYTHONHASHSEED`) and fails the build if any byte differs.
+
+To reproduce locally, pin the build timestamp to the commit before
+running the emitters:
+
+```
+export SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+capa --cyclonedx  main.capa > sbom.cyclonedx.json
+capa --spdx       main.capa > sbom.spdx.json
+capa --vex        main.capa > vex.json
+capa --provenance main.capa > provenance.json
+capa --manifest   main.capa > manifest.json
+```
+
+Determinism comes from two pieces: `SOURCE_DATE_EPOCH` (the
+reproducible-builds.org convention) pins every timestamp field to one
+instant instead of the wall clock, and `.gitattributes` pins newlines
+to LF so a CRLF checkout cannot perturb the bytes. Without
+`SOURCE_DATE_EPOCH` the emitters use real wall-clock time and two
+builds diverge by design.
+
 See the capabilities the program provably cannot reach (a capability
 is excluded program-wide only when every function excludes it, so this
 intersects the per-function proofs):

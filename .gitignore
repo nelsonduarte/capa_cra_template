@@ -8,7 +8,10 @@ vendor/
 
 # Generated conformity artifacts (CI regenerates them on release;
 # they are release assets, not source). Delete these lines if you
-# prefer to commit a snapshot into the repo.
+# prefer to commit a snapshot into the repo. Such a snapshot stays
+# byte-for-byte reproducible because .gitattributes pins newlines to
+# LF and the build pins SOURCE_DATE_EPOCH; for a worked example of that
+# committed-snapshot pattern see capa_paymentguard's conformity/ pack.
 sbom.cyclonedx.json
 sbom.spdx.json
 vex.json
