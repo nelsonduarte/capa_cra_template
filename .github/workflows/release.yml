@@ -30,31 +30,38 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
 
-      - name: Verify tag is GPG-signed by the pinned publisher key
+      - name: Verify tag is GPG-signed by this repo's publisher key
         run: |
           set -euo pipefail
-          # Anchor on the pinned primary-key fingerprint. A merely
-          # "valid" signature is not enough: the tag must be signed by
-          # THIS publisher. Any deviation (no key, wrong key, unsigned
-          # tag, signature by a different key) fails the release.
-          PINNED=6C1D222D491FB88031E041A536CFB426101AA24B
+          # This is a template: the publisher key belongs to whoever
+          # forks it, so the gate anchors on the key THIS repo committed
+          # as publisher.asc rather than any hardcoded fingerprint.
+          #
+          # Tag-signature verification is opt-in (see the README): if no
+          # publisher.asc has been committed yet, warn and skip without
+          # failing the release. Once publisher.asc exists the gate is
+          # fail-closed: the tag must be signed by exactly that key. A
+          # merely "valid" signature is not enough; a signature by any
+          # other key, an unsigned tag, or a missing key fails.
           if [ ! -f publisher.asc ]; then
-            echo "::error::publisher.asc is missing; cannot verify the tag signature."
-            exit 1
+            echo "::warning::publisher.asc not committed; skipping tag-signature verification. Commit your GPG public key as publisher.asc to enable it (see README)."
+            exit 0
           fi
           gpg --import publisher.asc
-          if ! gpg --with-colons --fingerprint \
-               | grep -q "^fpr:::::::::${PINNED}:"; then
-            echo "::error::publisher.asc does not contain the pinned fingerprint ${PINNED}."
+          # Derive the primary-key fingerprint from the committed key.
+          EXPECTED=$(gpg --show-keys --with-colons publisher.asc \
+                     | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ -z "${EXPECTED}" ]; then
+            echo "::error::could not derive a fingerprint from publisher.asc."
             exit 1
           fi
           SIGNER=$(git verify-tag --raw "${GITHUB_REF_NAME}" 2>&1 \
                    | awk '/^\[GNUPG:\] VALIDSIG/ { print $NF }')
-          if [ "${SIGNER}" != "${PINNED}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} is not signed by the pinned key (got '${SIGNER}', want '${PINNED}')."
+          if [ "${SIGNER}" != "${EXPECTED}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} is not signed by the publisher.asc key (got '${SIGNER}', want '${EXPECTED}')."
             exit 1
           fi
-          echo "Tag ${GITHUB_REF_NAME} verified against pinned publisher key ${PINNED}."
+          echo "Tag ${GITHUB_REF_NAME} verified against publisher.asc key ${EXPECTED}."
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
