@@ -5,18 +5,19 @@ project that is **CRA-ready from commit zero**. Clone it, replace the
 sample program with your own, and you inherit a build that emits the
 technical evidence the EU Cyber Resilience Act asks for: a software
 bill of materials, a documented attack surface, a VEX exploitability
-position, and signed build provenance, all as a by-product of
-compiling, not a separate manual effort.
+position, and build provenance (attested by the release workflow), all
+produced by the compiler in CI from the same source, not a separate
+manual effort.
 
 ## Why a template
 
 Every modern toolchain can emit an SBOM of dependencies. The CRA's
 attack-surface clauses (Annex I, Part I, (3)(e)/(f)) ask for
-something harder: evidence that a component's authority is *bounded*
-and that whole classes of behaviour are *absent*. Capa makes
-capabilities part of the type system, so the compiler can prove and
-record which capabilities a program does **not** use. This template
-wires that proof into CI and releases so you do not have to.
+something harder: evidence about a component's *authority*. Capa makes
+capabilities part of the type system: the compiler records which
+built-in capabilities each function holds, and the type checker refuses
+a call on a built-in capability that is not in scope. This template
+wires that record into CI and releases so you do not have to.
 
 See [docs/CRA-mapping.md](docs/CRA-mapping.md) for the clause-by-
 clause mapping.
@@ -51,15 +52,15 @@ capa --vex        main.capa > vex.json
 capa --provenance main.capa > provenance.json
 ```
 
-## Reproducible by construction
+## Reproducible builds, checked in CI
 
-Two builds of the same commit produce **byte-identical** artifacts, on
-any operating system. This is a CRA-relevant property: the evidence is
-not just available, it is verifiable and reproducible, so an assessor
-can rebuild it and diff against what shipped and get zero differences.
+With `SOURCE_DATE_EPOCH` pinned, repeated builds of the same commit are
+meant to produce **byte-identical** artifacts, and the compiler's tests
+pin that for repeated runs of the same program. A rebuild-and-diff is a
+check to run, not a guarantee.
 
-CI proves this automatically: after generating the five artifacts it
-regenerates them a second time (same commit, same epoch, a different
+CI runs that check on every push: after generating the five artifacts
+it regenerates them a second time (same commit, same epoch, a different
 `PYTHONHASHSEED`) and fails the build if any byte differs.
 
 To reproduce locally, pin the build timestamp to the commit before
@@ -81,9 +82,9 @@ to LF so a CRLF checkout cannot perturb the bytes. Without
 `SOURCE_DATE_EPOCH` the emitters use real wall-clock time and two
 builds diverge by design.
 
-See the capabilities the program provably cannot reach (a capability
-is excluded program-wide only when every function excludes it, so this
-intersects the per-function proofs):
+See the capabilities the compiler found no path to in any function (a
+capability is listed only when every function's derived exclusion set
+contains it, so this intersects the per-function sets):
 
 ```
 capa --manifest main.capa | python -c "import json,sys; \

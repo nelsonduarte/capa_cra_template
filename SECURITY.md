@@ -5,8 +5,9 @@ structural: the program is written in [Capa](https://github.com/nelsonduarte/cap
 so per-function capability discipline is enforced by the type
 checker. `main` declares only `Stdio` and `Fs`, the `Fs` capability
 is attenuated to `data/`, and the SBOM the compiler emits
-(`capa --cyclonedx main.capa`) proves that `Net`, `Proc`, `Db`,
-`Env`, `Clock`, `Random`, and `Unsafe` are unreachable.
+(`capa --cyclonedx main.capa`) records `Net`, `Proc`, `Db`, `Env`,
+`Clock`, `Random`, and `Unsafe` as capabilities the compiler found no
+path to.
 
 ## Reporting a vulnerability
 
